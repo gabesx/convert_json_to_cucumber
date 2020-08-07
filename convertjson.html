@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" id="jsontocucumber" class="">
+<style>
+#div1 {
+  font-size:48px;
+}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<body>
+
+<div id="div1" class="fa"></div>
+
+<script>
+function chargebattery() {
+  var a;
+  a = document.getElementById("div1");
+  a.innerHTML = "&#xf244;";
+  setTimeout(function () {
+      a.innerHTML = "&#xf243;";
+    }, 1000);
+  setTimeout(function () {
+      a.innerHTML = "&#xf242;";
+    }, 2000);
+  setTimeout(function () {
+      a.innerHTML = "&#xf241;";
+    }, 3000);
+  setTimeout(function () {
+      a.innerHTML = "&#xf240;";
+    }, 4000);
+}
+chargebattery();
+setInterval(chargebattery, 5000);
+</script>
+
+<p>JSON to Scenario Gherkins</p>
+</body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Json to Cucumber</title>
+</head>
+<body>
+<p>Put JSON:</p>
+<textarea id="inputJson" rows="15" cols="70"></textarea>
+<p>Output Text</p>
+<textarea id="outputJson" rows="15" cols="70"></textarea>
+<p/>
+<p>Options</p>
+<form action="">
+    <input id="type" type="radio" name="matcher" value="type" checked="checked"> Compare Data Type<br>
+    <input id="value" type="radio" name="matcher" value="value"> Compare Values<br>
+    <input id="collect" type="radio" name="matcher" value="collect"> Collect Response<br>
+    <input id="compare" type="radio" name="matcher" value="compare"> Compare Collected Response<br>
+</form>
+<p/>
+<button onclick="jsonToCucumber()">Convert</button>
+</body>
+</html>
+
+<script>
+  function jsonToCucumber() {
+    let res = "";
+    const json = JSON.parse(document.getElementById("inputJson").value)
+    const mode = selectedMode()
+
+    for (var key of Object.keys(json)) {
+      if (typeof(json[key]) === "object" && json[key] !== null) {
+        parseResult = parseData(key, json[key]);
+        res += parseResult
+      } else {
+        let expectation = ""
+        if (mode === "value"){
+          expectation = `"${json[key]}"`
+
+          if (expectation.includes("null")) {
+            res += `And response should have "$.${key}"\n`
+          }
+          else {
+            res += `And response should have "$.${key}" matching ${expectation}\n`
+          }
+
+        } else if (mode === "type") {
+          expectation = convertType(json[key])
+          res += `And response "$.${key}" should be ${expectation}\n`
+        } else if (mode === "collect") {
+          res += `And client collects "$.${key}" as "${key}"\n`
+        } else if (mode == "compare") {
+          res += `And response should have "$.${key}" matching "{{${key}}}"\n`
+        }
+      }
+    }
+
+    document.getElementById("outputJson").value = res;
+  }
+
+  function parseData(key, value, format= '') {
+    let childRes = ""
+    const mode = selectedMode()
+
+    for (var item of Object.keys(value)) {
+      if (typeof(value[item]) === "object" && value[item] !== null) {
+        keyFormat = `.${key}`
+        if (!isNaN(key))
+          keyFormat = `[${key}]`
+        parseResult = parseData(item, value[item], `${format}${keyFormat}`);
+        childRes += parseResult
+      } else {
+        keyFormat = `.${key}`
+        if (!isNaN(key))
+          keyFormat = `[${key}]`
+
+        let jsonKey = `"$.${format}${keyFormat}.${item}"`
+        childRes += resultString(mode, jsonKey, value, item)
+      }
+    }
+    return childRes;
+  }
+
+  function resultString(mode, key, value, item) {
+    let result = ""
+    let expectation = ""
+    let collectAs = ""
+
+    switch(mode) {
+      case "type":
+        expectation = convertType(value[item])
+        result += `And response ${key} should be ${expectation}\n`
+        break;
+      case "value":
+        expectation = `"${value[item]}"`
+        if (expectation.includes("null")) {
+          result += `And response should have ${key}\n`
+        } else {
+          result += `And response should have ${key} matching ${expectation}\n`
+        }
+        break;
+      case "collect":
+        collectAs = sanitizeKey(key.substr(5).replace(/\./g, '_')).replace(/\[(.*?)\]/g,'')
+        result += `And client collects ${key} as "${collectAs}\n`
+        break;
+      case "compare":
+        collectAs = sanitizeKey(key.substr(5).replace(/\./g, '_').slice(0, -1)).replace(/\[(.*?)\]/g,'')
+        result += `And response should have ${key} matching "{{${collectAs}}}"\n`
+        break;
+      default:
+        expectation = ""
+        result = ""
+    }
+    return result
+  }
+
+  function convertType(item) {
+    if (item === null) return `"null"`;
+
+    type = typeof(item);
+    if (type === "number" ) {
+      if (item % 1 === 0)
+        return "integer";
+      else
+        return "float";
+    }
+    if (type === "string" ) return "string";
+    if (type === "float" ) return "float";
+    if (type === "boolean" ) return "boolean";
+  }
+
+  function selectedMode() {
+    if (document.getElementById('value').checked) {
+      return document.getElementById('value').value;
+    } else if (document.getElementById('type').checked) {
+      return document.getElementById('type').value;
+    } else if (document.getElementById('collect').checked) {
+      return document.getElementById('collect').value;
+    } else if ((document.getElementById('compare').checked)){
+      return document.getElementById('compare').value;
+    } else {
+      return document.getElementById('type').value;
+    }
+  }
+
+  function sanitizeKey(key) {
+    if (key.startsWith("data_")) {
+      return key.substr(5)
+    } else if (key.startsWith("data[")) {
+      return key.split(/_(.+)/)[1]
+    }
+    return key
+  }
+
+</script>
+
+<style>
+  button {
+    background-color: grey;
+    border: none;
+    color: black;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    width: 250px;
+}
+
+  textarea {
+    font-size: 16px;
+  }
+</style>
